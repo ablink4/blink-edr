@@ -29,6 +29,11 @@ func StartFsMonitor(mountPath string) error {
 
 	log.Println("Filesystem fanotify monitor started on:", mountPath)
 
+	var ignorePaths = map[string]struct{}{
+		"/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2": {}, // dynamic linker/loader process called every time a program is loaded
+		"/usr/lib/x86_64-linux-gnu/libc.so.6":            {},
+	}
+
 	var buf [4096]byte
 	for {
 		n, err := unix.Read(fanFD, buf[:])
@@ -47,19 +52,21 @@ func StartFsMonitor(mountPath string) error {
 			path := fmt.Sprintf("/proc/self/fd/%d", event.Fd)
 			eventPath, _ := os.Readlink(path)
 
-			var ignorePaths = map[string]struct{}{
-				"/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2": {}, // dynamic linker/loader process called every time a program is loaded
-				"/usr/lib/x86_64-linux-gnu/libc.so.6":            {},
-			}
-
 			// this is the dynamic linker/loader that is called every time a program is executed, and it is just noise
 			if _, skip := ignorePaths[eventPath]; !skip {
+				cmdline, _ := os.ReadFile(fmt.Sprintf("/proc/%d/cmdline", event.Pid))
+				comm, _ := os.ReadFile(fmt.Sprintf("/proc/%d/comm", event.Pid))
+				exePath, _ := os.Readlink(fmt.Sprintf("/proc/%d/exe", event.Pid))
+				//exePath := "<this is exePath>"
+				status, _ := os.ReadFile(fmt.Sprintf("/proc/%d/status", event.Pid))
+				//status := "<this is status>"
+
 				if event.Mask&unix.FAN_OPEN_EXEC != 0 {
-					log.Printf("EXEC: PID=%d FILE=%s\n", event.Pid, eventPath)
+					log.Printf("EXEC: PID=%d\nFILE=%s\nCMD: %s\nProcessName: %s\nPath: %s\nStatus:%s\n", event.Pid, eventPath, cmdline, comm, exePath, status)
 				} else if event.Mask&unix.FAN_ACCESS != 0 {
-					log.Printf("ACCESS: PID=%d FILE=%s\n", event.Pid, eventPath)
+					log.Printf("ACCESS: PID=%d\nFILE=%s\nCMD: %s\nProcessName: %s\nPath: %s\nStatus: %s\n", event.Pid, eventPath, cmdline, comm, exePath, status)
 				} else if event.Mask&unix.FAN_MODIFY != 0 {
-					log.Printf("MODIFY: PID=%d FILE=%s\n", event.Pid, eventPath)
+					log.Printf("MODIFY: PID=%d\nFILE=%s\nCMD: %s\nProcessName: %s\nPath: %s\nStatus: %s\n", event.Pid, eventPath, cmdline, comm, exePath, status)
 				}
 			}
 
