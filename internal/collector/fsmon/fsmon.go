@@ -1,6 +1,8 @@
 package fsmon
 
 import (
+	fsmon "blink-edr/internal/proto"
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -9,6 +11,8 @@ import (
 	"unsafe"
 
 	"golang.org/x/sys/unix"
+	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type FsMonData struct {
@@ -22,7 +26,7 @@ type FsMonData struct {
 	Ppid                     int
 	Uid                      int
 	Gid                      int
-	Groups                   []int
+	Groups                   []int32
 	CapEff                   string
 	CapPrm                   string
 	CapBnd                   string
@@ -35,6 +39,12 @@ type FsMonData struct {
 	VoluntaryCtxtSwitches    int
 	NonVoluntaryCtxtSwitches int
 }
+
+// gRPC connection details for blink-yadp
+const (
+	serverAddr = "192.168.24.128:50051"
+	batchSize  = 10000
+)
 
 // StartFsMonitor uses fanotify to monitor filesystem events
 func StartFsMonitor(mountPath string) error {
@@ -62,7 +72,24 @@ func StartFsMonitor(mountPath string) error {
 		"/usr/lib/x86_64-linux-gnu/libc.so.6":            {},
 	}
 
+	conn, err := grpc.Dial(serverAddr, grpc.WithInsecure())
+	if err != nil {
+		log.Fatalf("failed to dial gRPC: %v", err)
+	}
+	defer conn.Close()
+
+	client := fsmon.NewFsMonIngestorClient(conn)
+	ctx := context.Background()
+
+	stream, err := client.SendFsMonStream(ctx)
+	if err != nil {
+		log.Fatalf("failed to open stream: %v", err)
+	}
+
+	var batch fsmon.FsMonBatch
+	eventCounter := 0 // to track how many events are added to a batch
 	var buf [4096]byte
+
 	for {
 		n, err := unix.Read(fanFD, buf[:])
 		if err != nil {
@@ -80,7 +107,44 @@ func StartFsMonitor(mountPath string) error {
 			if err != nil {
 				log.Printf("Error handling event: %v", err)
 			} else if procInfo != nil {
-				log.Printf("Event: %+v", procInfo)
+				//log.Printf("Event: %+v", procInfo)
+				msg := &fsmon.FsMon{
+					Timestamp:               timestamppb.Now(),
+					EventType:               procInfo.EventType,
+					Name:                    procInfo.Name,
+					Pid:                     int32(procInfo.Pid),
+					File:                    procInfo.File,
+					Cmd:                     procInfo.Cmd,
+					ProcName:                procInfo.ProcessName,
+					Path:                    procInfo.Path,
+					Ppid:                    int32(procInfo.Ppid),
+					Uid:                     int32(procInfo.Uid),
+					Gid:                     int32(procInfo.Gid),
+					Groups:                  procInfo.Groups,
+					CapEff:                  procInfo.CapEff,
+					CapPrm:                  procInfo.CapPrm,
+					CapBnd:                  procInfo.CapBnd,
+					Seccomp:                 int32(procInfo.Seccomp),
+					NoNewPrivs:              int32(procInfo.NoNewPrivs),
+					Threads:                 int32(procInfo.Threads),
+					VmSize:                  int32(procInfo.VmSize),
+					VmRss:                   int32(procInfo.VmRss),
+					VmData:                  int32(procInfo.VmData),
+					VoluntaryCtxSwitches:    int64(procInfo.VoluntaryCtxtSwitches),
+					NonvoluntaryCtxSwitches: int64(procInfo.NonVoluntaryCtxtSwitches),
+				}
+
+				batch.Items = append(batch.Items, msg)
+				eventCounter += 1
+
+				if eventCounter >= batchSize {
+					if err := stream.Send(&batch); err != nil {
+						log.Printf("stream send error: %v", err)
+					}
+
+					batch.Reset()
+				}
+
 			}
 
 			unix.Close(int(event.Fd))
@@ -199,13 +263,13 @@ func parseIntField(line string) int {
 }
 
 // parseIntList parses a list of space-separated ints like the Groups field in /proc/pid/status
-func parseIntList(s string) []int {
+func parseIntList(s string) []int32 {
 	fields := strings.Fields(s)
-	result := make([]int, 0, len(fields))
+	result := make([]int32, 0, len(fields))
 
 	for _, f := range fields {
 		if x, err := strconv.Atoi(f); err == nil {
-			result = append(result, x)
+			result = append(result, int32(x))
 		}
 	}
 
