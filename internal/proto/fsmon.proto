@@ -7,7 +7,7 @@ option go_package = "blink-edr/internal/proto/fsmon;fsmon";
 import "google/protobuf/timestamp.proto";
 
 // FsMon is the data from a single fsmon event
-message FsMon {
+message FsMon {    
     google.protobuf.Timestamp timestamp = 1;
     string event_type = 2;
     string name = 3;
@@ -31,6 +31,7 @@ message FsMon {
     int32 vm_data = 21;
     int64 voluntary_ctx_switches = 22;
     int64 nonvoluntary_ctx_switches = 23;
+    string computer_id = 24;
 }
 
 message FsMonBatch {

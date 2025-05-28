@@ -48,6 +48,7 @@ type FsMon struct {
 	VmData                  int32                  `protobuf:"varint,21,opt,name=vm_data,json=vmData,proto3" json:"vm_data,omitempty"`
 	VoluntaryCtxSwitches    int64                  `protobuf:"varint,22,opt,name=voluntary_ctx_switches,json=voluntaryCtxSwitches,proto3" json:"voluntary_ctx_switches,omitempty"`
 	NonvoluntaryCtxSwitches int64                  `protobuf:"varint,23,opt,name=nonvoluntary_ctx_switches,json=nonvoluntaryCtxSwitches,proto3" json:"nonvoluntary_ctx_switches,omitempty"`
+	ComputerId              string                 `protobuf:"bytes,24,opt,name=computer_id,json=computerId,proto3" json:"computer_id,omitempty"`
 	unknownFields           protoimpl.UnknownFields
 	sizeCache               protoimpl.SizeCache
 }
@@ -243,6 +244,13 @@ func (x *FsMon) GetNonvoluntaryCtxSwitches() int64 {
 	return 0
 }
 
+func (x *FsMon) GetComputerId() string {
+	if x != nil {
+		return x.ComputerId
+	}
+	return ""
+}
+
 type FsMonBatch struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Items         []*FsMon               `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
@@ -335,7 +343,7 @@ var File_internal_proto_fsmon_proto protoreflect.FileDescriptor
 
 const file_internal_proto_fsmon_proto_rawDesc = "" +
 	"\n" +
-	"\x1ainternal/proto/fsmon.proto\x12\x05fsmon\x1a\x1fgoogle/protobuf/timestamp.proto\"\x89\x05\n" +
+	"\x1ainternal/proto/fsmon.proto\x12\x05fsmon\x1a\x1fgoogle/protobuf/timestamp.proto\"\xaa\x05\n" +
 	"\x05FsMon\x128\n" +
 	"\ttimestamp\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12\x1d\n" +
 	"\n" +
@@ -362,7 +370,9 @@ const file_internal_proto_fsmon_proto_rawDesc = "" +
 	"\x06vm_rss\x18\x14 \x01(\x05R\x05vmRss\x12\x17\n" +
 	"\avm_data\x18\x15 \x01(\x05R\x06vmData\x124\n" +
 	"\x16voluntary_ctx_switches\x18\x16 \x01(\x03R\x14voluntaryCtxSwitches\x12:\n" +
-	"\x19nonvoluntary_ctx_switches\x18\x17 \x01(\x03R\x17nonvoluntaryCtxSwitches\"0\n" +
+	"\x19nonvoluntary_ctx_switches\x18\x17 \x01(\x03R\x17nonvoluntaryCtxSwitches\x12\x1f\n" +
+	"\vcomputer_id\x18\x18 \x01(\tR\n" +
+	"computerId\"0\n" +
 	"\n" +
 	"FsMonBatch\x12\"\n" +
 	"\x05items\x18\x01 \x03(\v2\f.fsmon.FsMonR\x05items\"\x1f\n" +

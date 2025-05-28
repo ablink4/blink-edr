@@ -16,6 +16,7 @@ import (
 )
 
 type FsMonData struct {
+	ComputerId               string
 	EventType                string
 	Name                     string
 	Pid                      int
@@ -43,7 +44,7 @@ type FsMonData struct {
 // gRPC connection details for blink-yadp
 const (
 	serverAddr = "192.168.24.128:50051"
-	batchSize  = 10000
+	batchSize  = 1000
 )
 
 // StartFsMonitor uses fanotify to monitor filesystem events
@@ -86,6 +87,11 @@ func StartFsMonitor(mountPath string) error {
 		log.Fatalf("failed to open stream: %v", err)
 	}
 
+	computerId, err := getProductUUID()
+	if err != nil {
+		fmt.Errorf("Error reading product ID: %v", err)
+	}
+
 	var batch fsmon.FsMonBatch
 	eventCounter := 0 // to track how many events are added to a batch
 	var buf [4096]byte
@@ -107,7 +113,6 @@ func StartFsMonitor(mountPath string) error {
 			if err != nil {
 				log.Printf("Error handling event: %v", err)
 			} else if procInfo != nil {
-				//log.Printf("Event: %+v", procInfo)
 				msg := &fsmon.FsMon{
 					Timestamp:               timestamppb.Now(),
 					EventType:               procInfo.EventType,
@@ -132,6 +137,7 @@ func StartFsMonitor(mountPath string) error {
 					VmData:                  int32(procInfo.VmData),
 					VoluntaryCtxSwitches:    int64(procInfo.VoluntaryCtxtSwitches),
 					NonvoluntaryCtxSwitches: int64(procInfo.NonVoluntaryCtxtSwitches),
+					ComputerId:              computerId,
 				}
 
 				batch.Items = append(batch.Items, msg)
@@ -144,7 +150,6 @@ func StartFsMonitor(mountPath string) error {
 
 					batch.Reset()
 				}
-
 			}
 
 			unix.Close(int(event.Fd))
@@ -274,4 +279,14 @@ func parseIntList(s string) []int32 {
 	}
 
 	return result
+}
+
+// getProductUUID reads the machine's BIOS UUID as a unique identifier for the machine, if not run as root this will be blank
+func getProductUUID() (string, error) {
+	data, err := os.ReadFile("/sys/class/dmi/id/product_uuid")
+	if err != nil {
+		return "", err
+	}
+
+	return strings.TrimSpace(string(data)), nil
 }
