@@ -6,26 +6,38 @@ LINUX_COLLECTOR_DIR := ./cmd/linux-collector
 PROTO_DIR := ./internal/proto
 PROTO_FILES := $(wildcard $(PROTO_DIR)/*.proto)
 
+BPF_SRC := ebpf/programs/exec_logger.bpf.c
+BPF_OBJ := build/exec_logger.bpf.o
+
 GO_BUILD := go build
 
-.PHONY: build clean
+.PHONY: build clean proto bpf all
 
-build: linux-collector
+build: bpf linux-collector
 
 linux-collector:
 	@echo "Building linux collector"
 	@$(GO_BUILD) -o $(COLLECTOR_BIN) $(LINUX_COLLECTOR_DIR)
 	sudo setcap cap_sys_admin,cap_sys_ptrace+ep $(COLLECTOR_BIN)
 
+# Compile the BPF C source file into a .o ELF using clang
+bpf:
+	@echo "Compiling eBPF programs..."
+	@mkdir -p build
+	@clang -O2 -g -Wall -target bpf \
+		-I$(KERNEL_HEADERS)/include \
+		-I$(KERNEL_HEADERS)/arch/$(shell uname -m)/include \
+		-c $(BPF_SRC) -o $(BPF_OBJ)
+
 proto:
 	@echo "Generating protobuf Go code..."
 	@protoc --go_out=. --go_opt=paths=source_relative \
-			--go-grpc_out=. --go-grpc_opt=paths=source_relative \
-			$(PROTO_FILES)
+		--go-grpc_out=. --go-grpc_opt=paths=source_relative \
+		$(PROTO_FILES)
 
-all: proto build
+all: proto bpf build
 
 clean:
 	@echo "Cleaning up binaries"
-	@rm -rf $(BIN_DIR)
+	@rm -rf $(BIN_DIR) build
 	@find $(PROTO_DIR) -name "*.pb.go" -delete
