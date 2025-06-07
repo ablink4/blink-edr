@@ -8,7 +8,7 @@
 
 // data to be sent to the Go program, must match the Go struct exactly
 struct event {
-    u32 pid;
+    __u32 pid;
     char comm[16];
 };
 
