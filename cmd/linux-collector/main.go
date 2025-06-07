@@ -1,7 +1,8 @@
 package main
 
 import (
-	"blink-edr/internal/collector/fsmon"
+	exec_mon "blink-edr/internal/collector/ebpf"
+	"context"
 	"log"
 	"os"
 )
@@ -12,9 +13,13 @@ func main() {
 		log.Fatal("This program must be run as root (use sudo).")
 	}
 
-	log.Println("Starting Linux EDR filesystem monitor collector")
+	log.Println("Starting Linux EDR collector")
 
-	if err := fsmon.StartFsMonitor("/"); err != nil {
-		log.Fatalf("FsMon failed: %v", err)
+	ctx := context.Background()
+
+	// TODO: this path needs to be made more robust and not dependent on where you run the program from nor having an absolute path
+	err := exec_mon.StartExecMonitor(ctx, "./build/exec_logger.bpf.o")
+	if err != nil {
+		log.Fatalf("monitor failed: %v", err)
 	}
 }

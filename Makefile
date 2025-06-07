@@ -9,6 +9,8 @@ PROTO_FILES := $(wildcard $(PROTO_DIR)/*.proto)
 BPF_SRC := ebpf/programs/exec_logger.bpf.c
 BPF_OBJ := build/exec_logger.bpf.o
 
+KERNEL_HEADERS ?= /usr/src/linux-headers-$(shell uname -r)/build
+
 GO_BUILD := go build
 
 .PHONY: build clean proto bpf all
@@ -27,6 +29,8 @@ bpf:
 	@clang -O2 -g -Wall -target bpf \
 		-I$(KERNEL_HEADERS)/include \
 		-I$(KERNEL_HEADERS)/arch/$(shell uname -m)/include \
+		-I$(KERNEL_HEADERS)/include/uapi \
+		-I$(KERNEL_HEADERS)/arch/$(shell uname -m)/include/uapi \
 		-c $(BPF_SRC) -o $(BPF_OBJ)
 
 proto:
